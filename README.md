@@ -1,5 +1,12 @@
 # FlightTracker
 
+[![CI](https://github.com/PriyanjanMitra/FlightTracker/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/PriyanjanMitra/FlightTracker/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Ruff](https://img.shields.io/badge/Ruff-lint-7A1FA2?logo=ruff&logoColor=white)](https://github.com/astral-sh/ruff)
+[![pytest](https://img.shields.io/badge/pytest-53%20passing-0A9EDC?logo=pytest&logoColor=white)](https://docs.pytest.org/)
+
 Live flight tracking dashboard — an ingestion pipeline pulls aircraft state vectors from the OpenSky Network, stores them in SQLite, and serves them to a React + Leaflet map UI.
 
 ## Features
