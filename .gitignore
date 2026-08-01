@@ -1,0 +1,40 @@
+# Credentials (sensitive)
+credentials.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# Project data
+data/flight_tracker.db
+data/openflights/
+
+# Tests & coverage
+.coverage
+htmlcov/
+coverage.xml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Distribution
+dist/
+*.egg-info/
+
+# Logs
+*.log
+
+# Node / frontend
+node_modules/
+frontend/dist/
