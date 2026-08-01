@@ -1,6 +1,13 @@
 # Credentials (sensitive)
 credentials.json
 
+# Local scripts
+ui-mock.sh
+
+# Local env
+.env
+dashboard/.env
+
 # Python
 __pycache__/
 *.pyc
