@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { Polyline } from "react-leaflet";
 import { fetchTrails, type TrailPoint } from "./api";
+import { useTheme } from "./theme";
 
 interface Props {
   icao24: string | null;
 }
 
 export default function TrailLayer({ icao24 }: Props) {
+  const { theme } = useTheme();
   const [points, setPoints] = useState<TrailPoint[]>([]);
   const [error, setError] = useState(false);
 
@@ -36,5 +38,5 @@ export default function TrailLayer({ icao24 }: Props) {
   if (points.length < 2) return null;
 
   const positions: [number, number][] = points.map((p) => [p.lat, p.lon]);
-  return <Polyline positions={positions} color="#2563eb" weight={2} opacity={0.7} />;
+  return <Polyline positions={positions} color={theme.trailColor} weight={2} opacity={0.7} />;
 }

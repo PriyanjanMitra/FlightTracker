@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import { fetchStates, type State } from "./api";
+import { useTheme } from "./theme";
 import AircraftMarkers from "./AircraftMarkers";
 import Sidebar from "./Sidebar";
 import TrailLayer from "./TrailLayer";
@@ -10,6 +11,7 @@ const DARK_TILES = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.pn
 const DARK_ATTR = '&copy; <a href="https://carto.com/">CARTO</a>';
 
 export default function App() {
+  const { theme, toggleTheme } = useTheme();
   const [states, setStates] = useState<State[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,8 +53,10 @@ export default function App() {
     [],
   );
 
+  const s = styles(theme);
+
   return (
-    <div style={{ display: "flex", height: "100%", width: "100%", background: "#0f172a" }}>
+    <div style={{ display: "flex", height: "100%", width: "100%", background: theme.bg }}>
       <Sidebar
         states={states}
         selectedIcao24={selected}
@@ -77,22 +81,31 @@ export default function App() {
           {selectedState && <MapFlyTo state={selectedState} />}
         </MapContainer>
 
-        <div style={styles.topRight}>
-          <span style={styles.count}>{states.length} aircraft</span>
-          {lastUpdated && <span style={styles.ts}>{lastUpdated}</span>}
+        <div style={s.topRight}>
+          <span style={s.count}>{states.length} aircraft</span>
+          {lastUpdated && <span style={s.ts}>{lastUpdated}</span>}
+          <button
+            style={s.themeBtn}
+            onClick={toggleTheme}
+            title={`Switch to ${theme.name === "radar" ? "Bonfire" : "Radar"} theme`}
+          >
+            {theme.icon}
+          </button>
         </div>
 
         {loading && (
-          <div style={styles.spinnerOverlay}>
-            <div style={styles.spinner} />
-            <span style={{ marginTop: 8, color: "#94a3b8" }}>Loading flight data…</span>
+          <div style={s.spinnerOverlay}>
+            <div style={s.spinner} />
+            <span style={{ marginTop: 10, color: theme.accent, letterSpacing: "0.15em", fontFamily: theme.font }}>
+              {theme.name === "souls" ? "Kindling the bonfire…" : "Loading flight data…"}
+            </span>
           </div>
         )}
 
         {error && !loading && (
-          <div style={styles.banner}>
+          <div style={s.banner}>
             {error}
-            <button style={styles.retryBtn} onClick={poll}>Retry</button>
+            <button style={s.retryBtn} onClick={poll}>Retry</button>
           </div>
         )}
 
@@ -124,78 +137,97 @@ function MapClickHandler({ onSelect }: { onSelect: (icao24: string | null) => vo
   return null;
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  topRight: {
-    position: "absolute",
-    top: 12,
-    right: 12,
-    zIndex: 1000,
-    display: "flex",
-    gap: 10,
-    alignItems: "center",
-  },
-  count: {
-    background: "rgba(15,23,42,0.85)",
-    color: "#94a3b8",
-    padding: "5px 12px",
-    borderRadius: 6,
-    fontSize: 12,
-    fontWeight: 600,
-    backdropFilter: "blur(4px)",
-    border: "1px solid #1e293b",
-  },
-  ts: {
-    background: "rgba(15,23,42,0.85)",
-    color: "#64748b",
-    padding: "5px 12px",
-    borderRadius: 6,
-    fontSize: 11,
-    fontFamily: "monospace",
-    backdropFilter: "blur(4px)",
-    border: "1px solid #1e293b",
-  },
-  spinnerOverlay: {
-    position: "absolute",
-    inset: 0,
-    zIndex: 2000,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "rgba(15,23,42,0.8)",
-    fontSize: 14,
-  },
-  spinner: {
-    width: 36,
-    height: 36,
-    border: "3px solid #1e293b",
-    borderTop: "3px solid #3b82f6",
-    borderRadius: "50%",
-    animation: "spin 0.8s linear infinite",
-  },
-  banner: {
-    position: "absolute",
-    top: 60,
-    right: 12,
-    zIndex: 1000,
-    background: "rgba(127,29,29,0.9)",
-    color: "#fca5a5",
-    padding: "8px 14px",
-    borderRadius: 6,
-    fontSize: 12,
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    backdropFilter: "blur(4px)",
-    border: "1px solid #7f1d1d",
-  },
-  retryBtn: {
-    background: "#dc2626",
-    color: "#fff",
-    border: "none",
-    borderRadius: 4,
-    padding: "3px 10px",
-    fontSize: 11,
-    cursor: "pointer",
-  },
-};
+function styles(theme: ReturnType<typeof useTheme>["theme"]): Record<string, React.CSSProperties> {
+  return {
+    topRight: {
+      position: "absolute",
+      top: 12,
+      right: 12,
+      zIndex: 1000,
+      display: "flex",
+      gap: 10,
+      alignItems: "center",
+    },
+    count: {
+      background: theme.chipBg,
+      color: theme.text,
+      padding: "5px 14px",
+      borderRadius: 6,
+      fontSize: 12,
+      fontWeight: 600,
+      fontFamily: theme.font,
+      letterSpacing: "0.08em",
+      backdropFilter: "blur(4px)",
+      border: `1px solid ${theme.borderLight}`,
+    },
+    ts: {
+      background: theme.chipBg,
+      color: theme.muted,
+      padding: "5px 14px",
+      borderRadius: 6,
+      fontSize: 11,
+      fontFamily: "monospace",
+      backdropFilter: "blur(4px)",
+      border: `1px solid ${theme.borderLight}`,
+    },
+    themeBtn: {
+      background: theme.chipBg,
+      color: theme.accent,
+      padding: "5px 10px",
+      borderRadius: 6,
+      fontSize: 16,
+      cursor: "pointer",
+      backdropFilter: "blur(4px)",
+      border: `1px solid ${theme.borderLight}`,
+      lineHeight: 1,
+    },
+    spinnerOverlay: {
+      position: "absolute",
+      inset: 0,
+      zIndex: 2000,
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      background: "rgba(10,10,10,0.9)",
+      fontSize: 14,
+      fontFamily: theme.font,
+    },
+    spinner: {
+      width: 40,
+      height: 40,
+      border: `3px solid ${theme.spinner.border}`,
+      borderTop: `3px solid ${theme.spinner.top}`,
+      borderRadius: "50%",
+      animation: "spin 0.8s linear infinite",
+      boxShadow: theme.spinner.glow,
+    },
+    banner: {
+      position: "absolute",
+      top: 60,
+      right: 12,
+      zIndex: 1000,
+      background: theme.banner.bg,
+      color: theme.banner.text,
+      padding: "8px 14px",
+      borderRadius: 6,
+      fontSize: 12,
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      backdropFilter: "blur(4px)",
+      border: `1px solid ${theme.banner.border}`,
+      fontFamily: theme.font,
+    },
+    retryBtn: {
+      background: theme.banner.btnBg,
+      color: theme.banner.text,
+      border: `1px solid ${theme.banner.border}`,
+      borderRadius: 4,
+      padding: "3px 10px",
+      fontSize: 11,
+      cursor: "pointer",
+      fontFamily: theme.font,
+    },
+  };
+}
