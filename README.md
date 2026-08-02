@@ -32,14 +32,12 @@ SQLite, and serves them to a React + Leaflet map UI.
 
 ## Architecture
 
-```text
-┌────────────┐   poll OpenSky   ┌────────────┐   upsert   ┌────────────┐
-│  Pipeline  │ ───────────────▶ │  Provider  │ ─────────▶ │  SQLite    │
-└────────────┘                  └────────────┘            └─────┬──────┘
-                                                                 │
-                 ┌──────────┐   /api/*   ┌───────────────┴───┐
-                 │ React UI │ ◀────────  │  FastAPI backend │
-                 └──────────┘            └───────────────────┘
+```mermaid
+flowchart LR
+    P[Pipeline] -- "poll OpenSky" --> O[OpenSky Provider]
+    O -- "upsert" --> S[(SQLite)]
+    A[FastAPI backend] -- "read" --> S
+    U[React UI] -- "/api/*" --> A
 ```
 
 ## How the code works
@@ -165,10 +163,12 @@ FastAPI app with three endpoints:
 
 ### Data flow
 
-```text
-OpenSky ─▶ Provider ─▶ DTO ─▶ Service ─▶ Repo (upsert) ─▶ SQLite
-                                                             │
-React UI ◀── /api/states, /api/trails, /api/flight-info ◀── FastAPI
+```mermaid
+flowchart LR
+    O[OpenSky] --> Pr[Provider] --> DTO[DTO] --> Svc[Service]
+    Svc --> R[Repo] -- "upsert" --> DB[(SQLite)]
+    DB --> API[FastAPI]
+    API --> UI[React UI]
 ```
 
 ## Quick start
