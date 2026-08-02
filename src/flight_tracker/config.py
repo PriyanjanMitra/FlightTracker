@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     opensky_bbox: str = ""
-    opensky_poll_seconds: int = 1
+    opensky_poll_seconds: int = 3
     database_url: str = "sqlite:///data/flight_tracker.db"
     log_level: str = "INFO"
     log_format: str = "text"

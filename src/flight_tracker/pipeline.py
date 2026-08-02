@@ -27,6 +27,9 @@ def build_pipeline() -> BackgroundScheduler:
         seconds=settings.opensky_poll_seconds,
         id="ingest_states",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=settings.opensky_poll_seconds * 2,
     )
 
     scheduler.add_job(
