@@ -17,7 +17,7 @@ def _row(**kw):
         "heading": kw.get("heading", 180.0),
         "vertical_rate": kw.get("vertical_rate", 0.0),
         "on_ground": kw.get("on_ground", False),
-        "last_contact": kw.get("last_contact", 1000),
+        "last_contact": kw.get("last_contact", int(datetime.now(UTC).timestamp())),
         "category": kw.get("category", None),
         "fetched_at": kw.get("fetched_at", datetime.now(UTC)),
     }
@@ -78,7 +78,8 @@ def test_prune_old_states_removes_expired(db_session):
 
 def test_upsert_updates_existing_row(db_session):
     repo = FlightStateRepo(db_session)
-    repo.upsert_many([_row(icao24="a", last_contact=1000, callsign="OLD")])
-    repo.upsert_many([_row(icao24="a", last_contact=1000, callsign="NEW")])
+    ts = int(datetime.now(UTC).timestamp())
+    repo.upsert_many([_row(icao24="a", last_contact=ts, callsign="OLD")])
+    repo.upsert_many([_row(icao24="a", last_contact=ts, callsign="NEW")])
     assert repo.count() == 1
     assert repo.latest_states(limit=10)[0].callsign == "NEW"

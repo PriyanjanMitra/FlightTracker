@@ -28,18 +28,26 @@ trap cleanup EXIT INT TERM
 command -v python3 >/dev/null 2>&1 || { echo -e "${RED}python3 is required${NC}"; exit 1; }
 command -v node >/dev/null 2>&1 || { echo -e "${RED}node is required for the dashboard${NC}"; exit 1; }
 
+# --- Python venv ---
+VENV="$ROOT/.venv"
+if [ ! -x "$VENV/bin/python" ]; then
+    echo -e "${GREEN}[1/5] Creating Python virtualenv...${NC}"
+    python3 -m venv "$VENV"
+fi
+
 # --- Install Python deps ---
 echo -e "${GREEN}[1/5] Installing Python dependencies...${NC}"
-pip install -q -e "$ROOT" 2>/dev/null || pip install -e "$ROOT"
+"$VENV/bin/pip" install -q -e "$ROOT" 2>/dev/null || "$VENV/bin/pip" install -e "$ROOT"
 
 # --- Init DB ---
 echo -e "${GREEN}[2/5] Initializing database...${NC}"
-python3 "$ROOT/main.py" init-db
+mkdir -p "$DATA_DIR"
+"$VENV/bin/python" "$ROOT/main.py" init-db
 
 # --- Load reference data (only once) ---
 if [ ! -f "$DATA_DIR/openflights/.loaded" ]; then
     echo -e "${GREEN}[3/5] Loading reference data (airports, airlines, routes)...${NC}"
-    python3 "$ROOT/main.py" load-ref-data
+    "$VENV/bin/python" "$ROOT/main.py" load-ref-data
     mkdir -p "$DATA_DIR/openflights"
     touch "$DATA_DIR/openflights/.loaded"
 else
@@ -56,11 +64,11 @@ cd "$ROOT"
 echo -e "${GREEN}[5/5] Starting services...${NC}"
 
 # Pipeline (poll OpenSky)
-python3 "$ROOT/main.py" run-pipeline &
+"$VENV/bin/python" "$ROOT/main.py" run-pipeline &
 echo $! >> "$PID_FILE"
 
 # FastAPI backend
-python3 "$ROOT/main.py" serve-backend &
+"$VENV/bin/python" "$ROOT/main.py" serve-backend &
 echo $! >> "$PID_FILE"
 
 # Vite dev server

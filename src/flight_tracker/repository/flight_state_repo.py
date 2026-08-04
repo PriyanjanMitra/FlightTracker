@@ -48,7 +48,10 @@ class FlightStateRepo:
         self._session.commit()
         return deleted
 
-    def latest_states(self, limit: int = 200) -> list[FlightState]:
+    def latest_states(
+        self, limit: int = 200, recent_minutes: int = 15
+    ) -> list[FlightState]:
+        cutoff = int(datetime.now(UTC).timestamp()) - recent_minutes * 60
         max_fetched = (
             self._session.query(
                 FlightState.icao24,
@@ -64,6 +67,7 @@ class FlightStateRepo:
                 (FlightState.icao24 == max_fetched.c.icao24)
                 & (FlightState.fetched_at == max_fetched.c.max_fetched),
             )
+            .filter(FlightState.last_contact >= cutoff)
             .order_by(FlightState.last_contact.desc())
             .limit(limit)
             .all()

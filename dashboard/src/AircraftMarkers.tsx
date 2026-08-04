@@ -1,8 +1,10 @@
 import { useMemo } from "react";
 import { divIcon } from "leaflet";
 import { Marker } from "react-leaflet";
+import MarkerClusterGroup from "react-leaflet-cluster";
 import type { State } from "./api";
 import { useTheme } from "./theme";
+import type { Theme } from "./theme";
 
 const PLANE_SVG = (color: string) =>
   `<svg viewBox="0 0 24 24" width="20" height="20" fill="${color}" xmlns="http://www.w3.org/2000/svg"><path d="M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>`;
@@ -40,6 +42,28 @@ function createSelectedIcon(heading: number | null, fill: string, glow: string, 
 
 function quantizeHeading(heading: number | null): number {
   return heading == null ? 0 : Math.round(heading / 5) * 5;
+}
+
+function createClusterIcon(theme: Theme) {
+  return (cluster: { getChildCount: () => number }) => {
+    const count = cluster.getChildCount();
+    const size = count >= 100 ? 56 : count >= 50 ? 48 : count >= 20 ? 42 : 36;
+    const html = `<div style="
+      width:${size}px;height:${size}px;border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      background:${theme.clusterBg};color:${theme.clusterText};
+      font-family:${theme.font};font-weight:700;
+      font-size:${Math.round(size * 0.32)}px;
+      border:2px solid ${theme.textBright};
+      box-shadow:0 0 14px ${theme.accent}66;
+    ">${count}</div>`;
+    return divIcon({
+      html,
+      className: "flight-cluster-icon",
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+    });
+  };
 }
 
 interface Props {
@@ -80,8 +104,16 @@ export default function AircraftMarkers({ states, selectedIcao24, onSelect }: Pr
     ? states.filter((s) => s.icao24 === selectedIcao24)
     : states;
 
+  const iconCreateFunction = useMemo(() => createClusterIcon(theme), [theme]);
+
   return (
-    <>
+    <MarkerClusterGroup
+      chunkedLoading
+      maxClusterRadius={60}
+      iconCreateFunction={iconCreateFunction}
+      spiderfyOnMaxZoom
+      showCoverageOnHover={false}
+    >
       {list.map((s) => (
         <Marker
           key={s.icao24}
@@ -92,6 +124,6 @@ export default function AircraftMarkers({ states, selectedIcao24, onSelect }: Pr
           }}
         />
       ))}
-    </>
+    </MarkerClusterGroup>
   );
 }

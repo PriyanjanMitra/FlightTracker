@@ -30,6 +30,8 @@ export interface Theme {
   markerFill: string;
   selectedMarker: { fill: string; glow: string };
   trailColor: string;
+  clusterBg: string;
+  clusterText: string;
   chipBg: string;
   spinner: { border: string; top: string; glow: string };
   banner: { bg: string; border: string; text: string; btnBg: string };
@@ -70,6 +72,8 @@ export const themes: Record<ThemeName, Theme> = {
     markerFill: "#2563eb",
     selectedMarker: { fill: "#ef4444", glow: "rgba(239,68,68,0.9)" },
     trailColor: "#2563eb",
+    clusterBg: "#2563eb",
+    clusterText: "#f8fafc",
     chipBg: "rgba(15,23,42,0.85)",
     spinner: { border: "#1e293b", top: "#3b82f6", glow: "none" },
     banner: {
@@ -114,6 +118,8 @@ export const themes: Record<ThemeName, Theme> = {
     markerFill: "#d4af37",
     selectedMarker: { fill: "#d4af37", glow: "rgba(212,175,55,0.9)" },
     trailColor: "#d4af37",
+    clusterBg: "#d4af37",
+    clusterText: "#0a0a0a",
     chipBg: "rgba(12,12,12,0.9)",
     spinner: { border: "#2c2c2c", top: "#d4af37", glow: "0 0 16px rgba(212,175,55,0.3)" },
     banner: {

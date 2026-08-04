@@ -106,7 +106,7 @@ export async function fetchStates(): Promise<State[]> {
     return generateMockStates();
   }
   const { data } = await api.get<State[]>("/api/states", {
-    params: { limit: 5000 },
+    params: { limit: 100000 },
   });
   return data;
 }

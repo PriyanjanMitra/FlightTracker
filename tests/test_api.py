@@ -77,15 +77,16 @@ def _clean_db() -> None:
 def test_get_states_returns_states():
     _clean_db()
     now = datetime.now(UTC)
+    ts = int(now.timestamp())
     _seed(states=[
         dict(icao24="a", callsign="UAL1", origin_country="US",
              latitude=40.0, longitude=-70.0, baro_altitude=10000.0,
              velocity=250.0, heading=180.0, vertical_rate=0.0,
-             on_ground=False, last_contact=1000, category=4, fetched_at=now),
+             on_ground=False, last_contact=ts, category=4, fetched_at=now),
         dict(icao24="b", callsign="DAL2", origin_country="US",
              latitude=30.0, longitude=-80.0, baro_altitude=20000.0,
              velocity=300.0, heading=90.0, vertical_rate=1.0,
-             on_ground=False, last_contact=1001, category=5, fetched_at=now),
+             on_ground=False, last_contact=ts + 1, category=5, fetched_at=now),
     ])
     resp = client.get("/api/states?limit=10")
     assert resp.status_code == 200
@@ -99,15 +100,16 @@ def test_get_states_returns_states():
 def test_get_states_filters_none_coords():
     _clean_db()
     now = datetime.now(UTC)
+    ts = int(now.timestamp())
     _seed(states=[
         dict(icao24="a", callsign="UAL1", origin_country="US",
              latitude=40.0, longitude=-70.0, baro_altitude=10000.0,
              velocity=250.0, heading=180.0, vertical_rate=0.0,
-             on_ground=False, last_contact=1000, category=None, fetched_at=now),
+             on_ground=False, last_contact=ts, category=None, fetched_at=now),
         dict(icao24="b", callsign="BAD", origin_country="XX",
              latitude=None, longitude=None, baro_altitude=None,
              velocity=None, heading=None, vertical_rate=None,
-             on_ground=None, last_contact=1000, category=None, fetched_at=now),
+             on_ground=None, last_contact=ts, category=None, fetched_at=now),
     ])
     resp = client.get("/api/states?limit=10")
     assert resp.status_code == 200
