@@ -1,1 +1,1 @@
-{"root":["./src/AircraftMarkers.tsx","./src/App.tsx","./src/SelectionDetail.tsx","./src/Sidebar.tsx","./src/TrailLayer.tsx","./src/api.ts","./src/main.tsx","./src/theme.tsx","./src/vite-env.d.ts"],"version":"5.9.3"}
+{"root":["./src/AircraftMarkers.tsx","./src/App.tsx","./src/DayNightOverlay.tsx","./src/Logo.tsx","./src/SelectionDetail.tsx","./src/Sidebar.tsx","./src/ThemeSwitchOverlay.tsx","./src/TrailLayer.tsx","./src/api.ts","./src/main.tsx","./src/sound.ts","./src/theme.tsx","./src/vite-env.d.ts"],"version":"5.9.3"}

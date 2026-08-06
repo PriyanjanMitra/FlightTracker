@@ -4,7 +4,13 @@ from unittest.mock import patch
 
 import responses
 
-from flight_tracker.providers.opensky_provider import OPENSKY_API, OpenSkyProvider, _load_auth
+from flight_tracker.providers.opensky_provider import (
+    AUTH_URL,
+    OPENSKY_API,
+    OPENSKY_FLIGHTS_AIRCRAFT_API,
+    OpenSkyProvider,
+    _load_auth,
+)
 
 
 def _mock_response(json_data, status_code=200):
@@ -40,15 +46,23 @@ def test_fetch_states_returns_parsed_dtos():
 @responses.activate
 def test_fetch_states_passes_bbox_params():
     responses.add(
+        responses.Response(
+            method="POST", url=AUTH_URL,
+            json={"access_token": "t", "expires_in": 1800}, status=200,
+        )
+    )
+    responses.add(
         responses.Response(method="GET", url=OPENSKY_API, json={"states": []}, status=200)
     )
-    provider = OpenSkyProvider()
-    provider.fetch_states(bbox="10,20,30,40")
-    assert "lamin" in responses.calls[0].request.params
-    assert float(responses.calls[0].request.params["lamin"]) == 10.0
-    assert float(responses.calls[0].request.params["lamax"]) == 20.0
-    assert float(responses.calls[0].request.params["lomin"]) == 30.0
-    assert float(responses.calls[0].request.params["lomax"]) == 40.0
+    with patch("flight_tracker.providers.opensky_provider._load_auth", return_value=("id", "sec")):
+        provider = OpenSkyProvider()
+        provider.fetch_states(bbox="10,20,30,40")
+    states_req = [c for c in responses.calls if c.request.url.startswith(OPENSKY_API)][0].request
+    assert "lamin" in states_req.params
+    assert float(states_req.params["lamin"]) == 10.0
+    assert float(states_req.params["lamax"]) == 20.0
+    assert float(states_req.params["lomin"]) == 30.0
+    assert float(states_req.params["lomax"]) == 40.0
 
 
 @responses.activate
@@ -111,17 +125,35 @@ def test_retries_on_timeout():
 
 
 @responses.activate
-def test_fetch_states_uses_basic_auth_when_credentials_available():
+def test_fetch_states_uses_bearer_token_when_credentials_available():
+    responses.add(
+        responses.Response(
+            method="POST",
+            url=AUTH_URL,
+            json={"access_token": "tok123", "expires_in": 1800},
+            status=200,
+        )
+    )
     responses.add(
         responses.Response(method="GET", url=OPENSKY_API, json={"states": []}, status=200)
     )
-    with patch(
-        "flight_tracker.providers.opensky_provider._load_auth", return_value=("user", "pass")
-    ):
+    with patch("flight_tracker.providers.opensky_provider._load_auth", return_value=("id", "sec")):
+        provider = OpenSkyProvider()
+        provider.fetch_states()
+    req = responses.calls[1].request
+    assert req.headers.get("Authorization") == "Bearer tok123"
+
+
+@responses.activate
+def test_fetch_states_anonymous_when_no_credentials():
+    responses.add(
+        responses.Response(method="GET", url=OPENSKY_API, json={"states": []}, status=200)
+    )
+    with patch("flight_tracker.providers.opensky_provider._load_auth", return_value=None):
         provider = OpenSkyProvider()
         provider.fetch_states()
     req = responses.calls[0].request
-    assert req.headers.get("Authorization") is not None
+    assert req.headers.get("Authorization") is None
 
 
 @patch("flight_tracker.providers.opensky_provider.pathlib.Path")
@@ -130,9 +162,9 @@ def test_load_auth_returns_credentials_from_json(mock_path_cls):
         mock_path_cls.return_value.resolve.return_value.parent.parent.parent.parent.__truediv__.return_value
     )
     mock_creds.exists.return_value = True
-    mock_creds.read_text.return_value = '{"username": "alice", "password": "s3cret"}'
+    mock_creds.read_text.return_value = '{"clientId": "api-client", "clientSecret": "s3cret"}'
     result = _load_auth()
-    assert result == ("alice", "s3cret")
+    assert result == ("api-client", "s3cret")
 
 
 @patch("flight_tracker.providers.opensky_provider.pathlib.Path")
@@ -159,3 +191,64 @@ def test_load_auth_returns_none_when_no_credentials(mock_path_cls):
         mock_settings.opensky_password = ""
         result = _load_auth()
     assert result is None
+
+
+@responses.activate
+def test_fetch_trajectory_route_returns_airports():
+    responses.add(
+        responses.Response(
+            method="POST",
+            url=AUTH_URL,
+            json={"access_token": "tok", "expires_in": 1800},
+            status=200,
+        )
+    )
+    responses.add(
+        responses.Response(
+            method="GET",
+            url=OPENSKY_FLIGHTS_AIRCRAFT_API,
+            json=[
+                {
+                    "icao24": "4bb15a",
+                    "estDepartureAirport": "VHHH",
+                    "estArrivalAirport": None,
+                    "callsign": "THY6237 ",
+                }
+            ],
+            status=200,
+        )
+    )
+    with patch("flight_tracker.providers.opensky_provider._load_auth", return_value=("id", "sec")):
+        provider = OpenSkyProvider()
+        origin, destination = provider.fetch_trajectory_route("4bb15a")
+    assert origin == "VHHH"
+    assert destination is None
+
+
+@responses.activate
+def test_fetch_trajectory_route_requires_auth():
+    with patch("flight_tracker.providers.opensky_provider._load_auth", return_value=None):
+        provider = OpenSkyProvider()
+        origin, destination = provider.fetch_trajectory_route("4bb15a")
+    assert origin is None
+    assert destination is None
+
+
+@responses.activate
+def test_fetch_trajectory_route_404_returns_none():
+    responses.add(
+        responses.Response(
+            method="POST",
+            url=AUTH_URL,
+            json={"access_token": "tok", "expires_in": 1800},
+            status=200,
+        )
+    )
+    responses.add(
+        responses.Response(method="GET", url=OPENSKY_FLIGHTS_AIRCRAFT_API, json=[], status=404)
+    )
+    with patch("flight_tracker.providers.opensky_provider._load_auth", return_value=("id", "sec")):
+        provider = OpenSkyProvider()
+        origin, destination = provider.fetch_trajectory_route("4bb15a")
+    assert origin is None
+    assert destination is None

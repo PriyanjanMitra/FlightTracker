@@ -108,6 +108,7 @@ export default function AircraftMarkers({ states, selectedIcao24, onSelect }: Pr
 
   return (
     <MarkerClusterGroup
+      key={theme.name}
       chunkedLoading
       maxClusterRadius={60}
       iconCreateFunction={iconCreateFunction}

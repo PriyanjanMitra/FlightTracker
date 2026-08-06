@@ -19,6 +19,7 @@ env/
 # Project data
 data/flight_tracker.db
 data/openflights/
+data/aircraft_registry.db
 
 # Tests & coverage
 .coverage

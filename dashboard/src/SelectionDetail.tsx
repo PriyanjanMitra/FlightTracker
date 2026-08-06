@@ -22,6 +22,7 @@ export default function SelectionDetail({ state, onClose }: Props) {
     if (!state?.callsign) return;
     let cancelled = false;
     fetchFlightInfo({
+      icao24: state.icao24,
       callsign: state.callsign,
       latitude: state.latitude,
       longitude: state.longitude,
@@ -33,7 +34,7 @@ export default function SelectionDetail({ state, onClose }: Props) {
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [state?.callsign, state?.latitude, state?.longitude, state?.heading, state?.vertical_rate]);
+  }, [state?.icao24, state?.callsign]);
 
   if (!state) return null;
 
@@ -48,18 +49,42 @@ export default function SelectionDetail({ state, onClose }: Props) {
         <div style={s.kicker}>{theme.name === "souls" ? "ESTUS KIND LED" : "FLIGHT INFO"}</div>
         <div style={s.callsign}>{state.callsign || (theme.name === "souls" ? "Nameless Soul" : "—")}</div>
 
-        {flightInfo?.origin && flightInfo?.destination && (
+        {flightInfo?.aircraft && (
+          <div style={s.aircraftLine}>
+            <span style={s.aircraftType}>
+              {flightInfo.aircraft.type || flightInfo.aircraft.icao_type || "Aircraft"}
+            </span>
+            {flightInfo.aircraft.manufacturer && (
+              <span style={s.aircraftMfg}>{flightInfo.aircraft.manufacturer}</span>
+            )}
+            {flightInfo.aircraft.registration && (
+              <span style={s.aircraftReg}>{flightInfo.aircraft.registration}</span>
+            )}
+          </div>
+        )}
+
+        {flightInfo?.airline?.name && (
+          <div style={s.airline}>{flightInfo.airline.name}</div>
+        )}
+
+        {(flightInfo?.origin || flightInfo?.destination) && (
           <div style={s.route}>
-            <span style={s.airportCode}>{flightInfo.origin.iata}</span>
+            <div style={s.routeEnd}>
+              <span style={s.airportCode}>{flightInfo?.origin?.iata ?? "—"}</span>
+              <span style={s.airportName}>{flightInfo?.origin?.name ?? "Unknown"}</span>
+            </div>
             <span style={s.routeArrow}>→</span>
-            <span style={s.airportCode}>{flightInfo.destination.iata}</span>
+            <div style={s.routeEnd}>
+              <span style={s.airportCode}>{flightInfo?.destination?.iata ?? "—"}</span>
+              <span style={s.airportName}>{flightInfo?.destination?.name ?? "Unknown"}</span>
+            </div>
           </div>
         )}
 
         <div style={s.grid}>
           <div style={s.gridItem}>
             <span style={s.label}>Altitude</span>
-            <span style={s.value}>{state.baro_altitude != null ? `${Math.round(state.baro_altitude)} m` : "—"}</span>
+            <span style={s.value}>{state.baro_altitude != null ? `${Math.round(state.baro_altitude)} ft` : "—"}</span>
           </div>
           <div style={s.gridItem}>
             <span style={s.label}>Speed</span>
@@ -145,15 +170,52 @@ function styles(theme: ReturnType<typeof useTheme>["theme"]): Record<string, Rea
       marginBottom: 18,
       fontSize: 14,
     },
+    routeEnd: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 2,
+    },
     airportCode: {
       fontWeight: 700,
       color: theme.accent,
       fontSize: 18,
       letterSpacing: "0.1em",
     },
+    airportName: {
+      fontSize: 11,
+      color: theme.muted,
+      maxWidth: 170,
+      whiteSpace: "nowrap" as const,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+    },
     routeArrow: {
       color: theme.muted,
       fontSize: 14,
+    },
+    aircraftLine: {
+      display: "flex",
+      alignItems: "baseline",
+      gap: 8,
+      marginBottom: 2,
+    },
+    aircraftType: {
+      fontWeight: 700,
+      color: theme.text,
+      fontSize: 14,
+    },
+    aircraftMfg: {
+      fontSize: 11,
+      color: theme.muted,
+    },
+    aircraftReg: {
+      fontSize: 11,
+      color: theme.accent,
+    },
+    airline: {
+      fontSize: 12,
+      color: theme.muted,
+      marginBottom: 12,
     },
     grid: {
       display: "grid",

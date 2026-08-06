@@ -64,6 +64,23 @@ class AirportInfo(BaseModel):
     longitude: float
 
 
+class AirlineInfo(BaseModel):
+    name: str | None = None
+    icao: str | None = None
+    iata: str | None = None
+
+
+class AircraftInfo(BaseModel):
+    icao24: str
+    type: str | None = None
+    icao_type: str | None = None
+    manufacturer: str | None = None
+    registration: str | None = None
+    owner: str | None = None
+
+
 class FlightInfoResponse(BaseModel):
+    aircraft: AircraftInfo | None = None
+    airline: AirlineInfo | None = None
     origin: AirportInfo | None = None
     destination: AirportInfo | None = None

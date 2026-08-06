@@ -197,6 +197,7 @@ Copy `.env.example` to `.env` and adjust:
 | `OPENSKY_BBOX`           | *(empty)*                           | `lat_min,lat_max,lng_min,lng_max`; empty = worldwide |
 | `OPENSKY_POLL_SECONDS`   | `1`                                 | Ingestion poll interval                 |
 | `OPENSKY_USERNAME` / `OPENSKY_PASSWORD` | *(empty)*               | Authenticated OpenSky access (4000 req/h) |
+| `AIRCRAFT_REGISTRY_DB` | `data/aircraft_registry.db` | Local icao24→typecode index for offline type lookup |
 | `DATABASE_URL`           | `sqlite:///data/flight_tracker.db`   | SQLAlchemy connection string            |
 | `LOG_LEVEL`              | `INFO`                              | Logging level                           |
 
@@ -215,6 +216,23 @@ add a `credentials.json` in the project root:
 
 Both `username`/`password` and `clientId`/`clientSecret` key pairs are
 recognized. **This file is git-ignored — never commit it.**
+
+Authenticated access also enables **trajectory-based route estimation**
+(`/api/flights/aircraft`): origin/destination are inferred from the aircraft's
+observed flight path when no filed route exists (the fallback after adsbdb and
+the OpenSky routes API).
+
+### Aircraft registry (offline type lookup)
+
+Aircraft type details (typecode, model, registration, operator) come primarily
+from a local SQLite index built from OpenSky's public aircraft database, so no
+network call is needed per flight. Build it once:
+
+```bash
+# Download the latest snapshot from:
+# https://s3.opensky-network.org/data-samples/metadata/aircraft-database-complete-*.csv
+python scripts/build_aircraft_index.py aircraft-database-complete-2025-08.csv data/aircraft_registry.db
+```
 
 ## Commands
 

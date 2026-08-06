@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { State } from "./api";
+import Logo from "./Logo";
 import { useTheme } from "./theme";
 
 type SortKey = "callsign" | "baro_altitude" | "velocity" | "heading" | "origin_country";
@@ -12,7 +13,7 @@ interface Props {
 }
 
 export default function Sidebar({ states, selectedIcao24, onSelect }: Props) {
-  const { theme } = useTheme();
+  const { theme, themeName } = useTheme();
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("callsign");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -57,9 +58,11 @@ export default function Sidebar({ states, selectedIcao24, onSelect }: Props) {
   return (
     <div style={s.panel}>
       <div style={s.header}>
-        <span style={s.logo}>{theme.icon}</span>
+        <span style={{ ...s.logo, color: theme.accentText }}>
+          <Logo themeName={themeName} />
+        </span>
         <div>
-          <div style={s.title}>{theme.label}</div>
+          <div style={s.title}>FlightTracker</div>
           <div style={s.subtitle}>{theme.name === "souls" ? "The Skies Endure" : "Live Flight Tracking"}</div>
         </div>
       </div>

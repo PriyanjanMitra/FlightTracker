@@ -1,10 +1,7 @@
 """FastAPI backend for the FlightTracker React frontend."""
 
-import math
-import re
 import time
 from collections.abc import Callable, Generator
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -19,7 +16,10 @@ from flight_tracker.models.dtos import (
     FlightInfoResponse,
     FlightStateResponse,
 )
-from flight_tracker.models.orm import Airline, Airport, Route, create_engine_safe
+from flight_tracker.models.orm import Airport, create_engine_safe
+from flight_tracker.providers.adsbdb_provider import AdsbdbProvider
+from flight_tracker.providers.aircraft_registry import AircraftRegistry
+from flight_tracker.providers.opensky_provider import OpenSkyProvider
 
 app = FastAPI(title="FlightTracker API")
 
@@ -35,6 +35,11 @@ _SessionLocal = sessionmaker(bind=engine)
 
 _cache: dict[str, tuple[float, Any]] = {}
 _CACHE_TTL = 2.0
+_ADSBCACHE_TTL = 120.0
+
+_adsbdb = AdsbdbProvider()
+_opensky = OpenSkyProvider()
+_registry = AircraftRegistry(settings.aircraft_registry_db)
 
 
 def _cached(key: str, ttl: float, factory: Callable[[], Any]) -> Any:
@@ -71,7 +76,11 @@ def _query_states(limit: int, db: Session) -> list[FlightStateResponse]:
             origin_country=str(r.origin_country or ""),
             latitude=float(r.latitude),
             longitude=float(r.longitude),
-            baro_altitude=float(r.baro_altitude) if r.baro_altitude is not None else None,
+            baro_altitude=(
+                round(float(r.baro_altitude) * 3.28084)
+                if r.baro_altitude is not None
+                else None
+            ),
             velocity=float(r.velocity) if r.velocity is not None else None,
             heading=float(r.heading) if r.heading is not None else None,
             vertical_rate=float(r.vertical_rate) if r.vertical_rate is not None else None,
@@ -108,147 +117,79 @@ def get_trails(
     return trails
 
 
-def _bearing(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    dlon = math.radians(lon2 - lon1)
-    x = math.sin(dlon) * math.cos(math.radians(lat2))
-    y = (math.cos(math.radians(lat1)) * math.sin(math.radians(lat2))
-         - math.sin(math.radians(lat1)) * math.cos(math.radians(lat2))
-         * math.cos(dlon))
-    return (math.degrees(math.atan2(x, y)) + 360) % 360
-
-
-def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    r = 6371
-    dlat = math.radians(lat2 - lat1)
-    dlon = math.radians(lon2 - lon1)
-    a = (math.sin(dlat / 2) ** 2
-         + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2))
-         * math.sin(dlon / 2) ** 2)
-    return r * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-
-
 @app.get("/api/flight-info", response_model=FlightInfoResponse)
 def get_flight_info(
     callsign: str = Query(..., min_length=2, max_length=10, pattern=r"^[A-Z0-9]{2,10}$"),
+    icao24: str | None = None,
     latitude: float | None = None,
     longitude: float | None = None,
     heading: float | None = None,
     vertical_rate: float | None = None,
     db: Session = Depends(get_db),
 ) -> FlightInfoResponse:
-    """Match a callsign to origin/destination using proximity, phase, and bearing."""
-    m = re.match(r"([A-Z]{2,3})(\d*)", callsign.strip().upper())
-    if not m:
-        return FlightInfoResponse()
-    airline_code = m.group(1)
-
-    codes = _resolve_airline_codes(db, airline_code)
-
-    routes = (
-        db.query(Route)
-        .filter(Route.airline.in_(list(codes)))
-        .filter(Route.source_airport.isnot(None))
-        .filter(Route.destination_airport.isnot(None))
-        .all()
-    )
-    if not routes:
-        return FlightInfoResponse()
-
-    airport_iata_codes: set[str] = set()
-    for r in routes:
-        if r.source_airport:
-            airport_iata_codes.add(str(r.source_airport))
-        if r.destination_airport:
-            airport_iata_codes.add(str(r.destination_airport))
-
-    airports = (
-        db.query(Airport)
-        .filter(Airport.iata.in_(list(airport_iata_codes)))
-        .all()
-    )
-    ap_map: dict[str, AirportInfo] = {}
-    for a in airports:
-        iata = str(a.iata) if a.iata else ""
-        if not iata:
-            continue
-        ap_map[iata] = AirportInfo(
-            iata=iata,
-            name=str(a.name or iata),
-            latitude=float(a.latitude),
-            longitude=float(a.longitude),
+    """Build flight-info from ADS‑B DB + OpenSky routes."""
+    adsb_info = None
+    if icao24:
+        key = f"flight-info:{icao24}:{callsign.upper()}"
+        adsb_info = _cached(
+            key,
+            _ADSBCACHE_TTL,
+            lambda: _adsbdb.fetch_flight_info(icao24, callsign),
         )
 
-    @dataclass
-    class _RouteCandidate:
-        origin: AirportInfo
-        destination: AirportInfo
-        route_bearing: float
-        dist_origin_km: float
-        dist_dest_km: float
+    aircraft = adsb_info.aircraft if adsb_info else None
+    airline = adsb_info.airline if adsb_info else None
+    origin = adsb_info.origin if adsb_info else None
+    destination = adsb_info.destination if adsb_info else None
 
-    candidates: list[_RouteCandidate] = []
-    for r in routes:
-        src = ap_map.get(str(r.source_airport))
-        dst = ap_map.get(str(r.destination_airport))
-        if not src or not dst:
-            continue
-        candidates.append(_RouteCandidate(
-            origin=src,
-            destination=dst,
-            route_bearing=_bearing(
-                src.latitude, src.longitude,
-                dst.latitude, dst.longitude,
-            ),
-            dist_origin_km=_haversine_km(
-                latitude or 0, longitude or 0,
-                src.latitude, src.longitude,
-            ),
-            dist_dest_km=_haversine_km(
-                latitude or 0, longitude or 0,
-                dst.latitude, dst.longitude,
-            ),
-        ))
+    # Prefer the local OpenSky aircraft registry for type details (offline, free).
+    if (aircraft is None or aircraft.icao_type is None) and icao24:
+        registered = _registry.lookup(icao24)
+        if registered:
+            aircraft = registered
+            if adsb_info is not None and adsb_info.aircraft is not None:
+                aircraft.owner = aircraft.owner or adsb_info.aircraft.owner
 
-    if not candidates:
-        return FlightInfoResponse()
+    # Fall back to OpenSky route (keyed by callsign) when ADS‑B DB lacks a route.
+    if (origin is None or destination is None) and (icao24 or callsign):
+        route = _cached(
+            f"route:{icao24 or callsign.upper()}",
+            _ADSBCACHE_TTL,
+            lambda: _opensky.fetch_route(callsign),
+        )
+        if route:
+            origin = origin or _airport_by_icao(db, route[0])
+            destination = destination or _airport_by_icao(db, route[1])
 
-    if latitude is not None and longitude is not None:
-        is_climbing = vertical_rate is not None and vertical_rate > 2
-        is_descending = vertical_rate is not None and vertical_rate < -2
+    # Last resort: trajectory-estimated origin/destination from OpenSky (auth).
+    if (origin is None or destination is None) and icao24:
+        traj = _cached(
+            f"traj:{icao24}",
+            _ADSBCACHE_TTL,
+            lambda: _opensky.fetch_trajectory_route(icao24),
+        )
+        if traj:
+            origin = origin or (_airport_by_icao(db, traj[0]) if traj[0] else None)
+            destination = destination or (
+                _airport_by_icao(db, traj[1]) if traj[1] else None
+            )
 
-        def score(c: _RouteCandidate) -> float:
-            d_org = float(c.dist_origin_km)
-            d_dst = float(c.dist_dest_km)
-            bear_diff = abs(float(c.route_bearing) - (heading or 0)) % 360
-            if bear_diff > 180:
-                bear_diff = 360 - bear_diff
-
-            if is_climbing:
-                proximity = d_org
-            elif is_descending:
-                proximity = d_dst
-            else:
-                proximity = min(d_org, d_dst)
-
-            return proximity + bear_diff * 5
-
-        candidates.sort(key=score)
-
-    best = candidates[0]
-    return FlightInfoResponse(origin=best.origin, destination=best.destination)
+    return FlightInfoResponse(
+        aircraft=aircraft,
+        airline=airline,
+        origin=origin,
+        destination=destination,
+    )
 
 
-def _resolve_airline_codes(db: Session, code: str) -> set[str]:
-    """Resolve an airline ICAO/IATA code to a set of known codes from the database."""
-    codes = {code}
-
-    if len(code) == 3:
-        row = db.query(Airline).filter(Airline.icao == code).first()
-        if row and row.iata:
-            codes.add(str(row.iata))
-    elif len(code) == 2:
-        row = db.query(Airline).filter(Airline.iata == code).first()
-        if row and row.icao:
-            codes.add(str(row.icao))
-
-    return codes
+def _airport_by_icao(db: Session, icao: str) -> AirportInfo | None:
+    """Resolve an ICAO airport code to an AirportInfo row, if present in the DB."""
+    row = db.query(Airport).filter(Airport.icao == icao).first()
+    if not row or row.latitude is None or row.longitude is None:
+        return None
+    return AirportInfo(
+        iata=str(row.iata or ""),
+        name=str(row.name or icao),
+        latitude=float(row.latitude),
+        longitude=float(row.longitude),
+    )

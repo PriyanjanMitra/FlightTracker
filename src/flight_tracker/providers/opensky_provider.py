@@ -12,24 +12,28 @@ import requests
 from flight_tracker.models.dtos import FlightStateDTO
 
 OPENSKY_API = "https://opensky-network.org/api/states/all"
+OPENSKY_ROUTES_API = "https://opensky-network.org/api/routes"
+OPENSKY_FLIGHTS_AIRCRAFT_API = "https://opensky-network.org/api/flights/aircraft"
+AUTH_URL = "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token"
 REQUEST_TIMEOUT = 30
 MAX_RETRIES = 3
 BASE_BACKOFF = 2.0
 DEFAULT_RATE_LIMIT_BACKOFF = 120.0
+ROUTE_HISTORY_HOURS = 24
 
 log = logging.getLogger(__name__)
 
 
 def _load_auth() -> tuple[str, str] | None:
-    """Load OpenSky credentials from credentials.json or settings env vars."""
+    """Load OpenSky client credentials (clientId/clientSecret) for the OAuth2 flow."""
     creds_path = pathlib.Path(__file__).resolve().parent.parent.parent.parent / "credentials.json"
     if creds_path.exists():
         try:
             data = json.loads(creds_path.read_text())
-            user = data.get("username") or data.get("clientId") or ""
-            pwd = data.get("password") or data.get("clientSecret") or ""
-            if user and pwd:
-                return (user, pwd)
+            client_id = data.get("clientId") or data.get("username") or ""
+            client_secret = data.get("clientSecret") or data.get("password") or ""
+            if client_id and client_secret:
+                return (client_id, client_secret)
         except (json.JSONDecodeError, OSError) as exc:
             log.warning("Failed to read credentials.json: %s", exc)
 
@@ -58,20 +62,61 @@ def _parse_retry_after(resp: requests.Response) -> float:
 
 
 class OpenSkyProvider:
-    _rate_limit_until: float = 0.0
-
     def __init__(self) -> None:
-        self._auth = _load_auth()
+        self._credentials = _load_auth()
+        self._token: str | None = None
+        self._token_expires_at: float = 0.0
+        self._rate_limit_until: float = 0.0
+        self._rate_limit_logged: bool = False
+
+    def _obtain_token(self) -> None:
+        """Exchange client credentials for an OAuth2 access token."""
+        if not self._credentials:
+            return
+        client_id, client_secret = self._credentials
+        try:
+            resp = requests.post(
+                AUTH_URL,
+                data={
+                    "grant_type": "client_credentials",
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                },
+                timeout=REQUEST_TIMEOUT,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            self._token = data["access_token"]
+            expires_in = int(data.get("expires_in", 1800))
+            self._token_expires_at = time.monotonic() + expires_in - 60
+            log.info("Obtained OpenSky access token (expires in %ds)", expires_in)
+        except (requests.RequestException, KeyError, ValueError) as exc:
+            log.error("Failed to obtain OpenSky access token: %s", exc)
+            self._token = None
+
+    def _request_headers(self) -> dict[str, str] | None:
+        """Return Authorization headers using a valid Bearer token, if credentials exist."""
+        if not self._credentials:
+            return None
+        if not self._token or time.monotonic() >= self._token_expires_at:
+            self._obtain_token()
+        if self._token:
+            return {"Authorization": f"Bearer {self._token}"}
+        return None
 
     def fetch_states(self, bbox: str | None = None) -> Sequence[FlightStateDTO]:
         now = time.monotonic()
         if now < self._rate_limit_until:
-            remaining = self._rate_limit_until - now
-            log.warning(
-                "OpenSky rate-limited; %.0fs remaining until retry",
-                remaining,
-            )
+            if not self._rate_limit_logged:
+                self._rate_limit_logged = True
+                log.warning(
+                    "OpenSky rate-limited; retrying in %.0fs",
+                    self._rate_limit_until - now,
+                )
             return []
+        if self._rate_limit_logged:
+            self._rate_limit_logged = False
+            log.info("OpenSky rate-limit cooldown over; resuming requests")
 
         params: dict[str, str | float] = {}
         if bbox:
@@ -80,16 +125,23 @@ class OpenSkyProvider:
                 params["lamin"], params["lamax"], params["lomin"], params["lomax"] = parts
 
         last_exc: Exception | None = None
+        headers = self._request_headers()
         for attempt in range(MAX_RETRIES):
             try:
                 resp = requests.get(
-                    OPENSKY_API, params=params, timeout=REQUEST_TIMEOUT, auth=self._auth
+                    OPENSKY_API, params=params, headers=headers, timeout=REQUEST_TIMEOUT
                 )
+                if resp.status_code == 401:
+                    self._token = None
+                    headers = self._request_headers()
+                    log.warning("OpenSky returned 401; token refreshed, retrying")
+                    continue
                 if resp.status_code == 429:
                     retry_after = _parse_retry_after(resp)
                     self._rate_limit_until = time.monotonic() + retry_after
+                    self._rate_limit_logged = False
                     log.warning(
-                        "OpenSky rate-limited (429); retry after %.0fs",
+                        "OpenSky rate-limited (429); retry in %.0fs",
                         retry_after,
                     )
                     return []
@@ -118,6 +170,77 @@ class OpenSkyProvider:
         if last_exc:
             log.error("OpenSky request failed after %d attempts: %s", MAX_RETRIES, last_exc)
         return []
+
+    def fetch_route(self, callsign: str) -> tuple[str, str] | None:
+        """Fetch the route (origin, destination) for a flight by callsign.
+
+        The OpenSky routes API is keyed by callsign and returns a flat list of
+        ICAO airport codes: {"route": ["EGLL", "OTHH"], ...}.
+        Returns a (origin_icao, destination_icao) tuple, or None when unknown/errors.
+        """
+        params = {"callsign": callsign}
+        headers = self._request_headers()
+        try:
+            resp = requests.get(
+                OPENSKY_ROUTES_API, params=params, headers=headers, timeout=REQUEST_TIMEOUT
+            )
+            if resp.status_code == 404:
+                return None
+            resp.raise_for_status()
+            data = resp.json()
+            route = data.get("route") if isinstance(data, dict) else None
+            if not route or len(route) < 2:
+                return None
+            origin, destination = route[0], route[1]
+            if not origin or not destination:
+                return None
+            return str(origin), str(destination)
+        except (requests.RequestException, KeyError, TypeError, ValueError) as exc:
+            log.warning("OpenSky route request failed for %s: %s", callsign, exc)
+            return None
+
+    def fetch_trajectory_route(self, icao24: str) -> tuple[str | None, str | None]:
+        """Fetch origin/destination estimated from the aircraft's observed trajectory.
+
+        Requires authenticated OpenSky access. Queries the aircraft's flights over the
+        last ROUTE_HISTORY_HOURS and returns (estDepartureAirport, estArrivalAirport)
+        as ICAO codes from the most recent flight. Either element may be None when not
+        yet resolved (e.g. arrival is unknown mid-ocean).
+        """
+        headers = self._request_headers()
+        if not headers:
+            log.info("No OpenSky credentials; skipping trajectory route for %s", icao24)
+            return (None, None)
+        now = int(time.time())
+        params: dict[str, str | int] = {
+            "icao24": icao24,
+            "begin": now - ROUTE_HISTORY_HOURS * 3600,
+            "end": now,
+        }
+        try:
+            resp = requests.get(
+                OPENSKY_FLIGHTS_AIRCRAFT_API,
+                params=params,
+                headers=headers,
+                timeout=REQUEST_TIMEOUT,
+            )
+            if resp.status_code == 404:
+                return (None, None)
+            if resp.status_code == 401:
+                self._token = None
+                log.warning("OpenSky returned 401 for trajectory route; token refreshed")
+                return (None, None)
+            resp.raise_for_status()
+            flights = resp.json()
+            if not isinstance(flights, list) or not flights:
+                return (None, None)
+            flight = flights[-1]
+            origin = flight.get("estDepartureAirport")
+            destination = flight.get("estArrivalAirport")
+            return (str(origin) if origin else None, str(destination) if destination else None)
+        except (requests.RequestException, KeyError, TypeError, ValueError) as exc:
+            log.warning("OpenSky trajectory route request failed for %s: %s", icao24, exc)
+            return (None, None)
 
     @staticmethod
     def _parse_states(data: dict[str, Any]) -> list[FlightStateDTO]:

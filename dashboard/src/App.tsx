@@ -3,21 +3,36 @@ import { MapContainer, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import { fetchStates, type State } from "./api";
 import { useTheme } from "./theme";
 import AircraftMarkers from "./AircraftMarkers";
+import DayNightOverlay from "./DayNightOverlay";
+import Logo from "./Logo";
 import Sidebar from "./Sidebar";
+import { playThemeSwitchSound } from "./sound";
+import ThemeSwitchOverlay from "./ThemeSwitchOverlay";
 import TrailLayer from "./TrailLayer";
 import SelectionDetail from "./SelectionDetail";
 
-const DARK_TILES = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
-const DARK_ATTR = '&copy; <a href="https://carto.com/">CARTO</a>';
+const DARK_TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const DARK_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 export default function App() {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, themeName, toggleTheme } = useTheme();
   const [states, setStates] = useState<State[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [soulsOverlay, setSoulsOverlay] = useState(false);
   const pollingRef = useRef(false);
+  const prevTheme = useRef(themeName);
+
+  useEffect(() => {
+    const enteringSouls = prevTheme.current === "radar" && themeName === "souls";
+    prevTheme.current = themeName;
+    if (enteringSouls) {
+      setSoulsOverlay(true);
+      playThemeSwitchSound();
+    }
+  }, [themeName]);
 
   const poll = useCallback(async () => {
     if (pollingRef.current) return;
@@ -37,7 +52,7 @@ export default function App() {
 
   useEffect(() => {
     poll();
-    const id = setInterval(poll, 2_000);
+    const id = setInterval(poll, 60_000);
     return () => clearInterval(id);
   }, [poll]);
 
@@ -56,24 +71,47 @@ export default function App() {
   const s = styles(theme);
 
   return (
-    <div style={{ display: "flex", height: "100%", width: "100%", background: theme.bg }}>
-      <Sidebar
-        states={states}
-        selectedIcao24={selected}
-        onSelect={handleSelect}
-      />
-      <div style={{ flex: 1, position: "relative" }}>
+    <div style={{ position: "relative", height: "100%", width: "100%", background: theme.bg }}>
+      <div
+        style={{
+          display: "flex",
+          height: "100%",
+          width: "100%",
+          filter: soulsOverlay ? "grayscale(1)" : "none",
+          transition: "filter 1.5s ease-in-out",
+        }}
+      >
+        <Sidebar
+          states={states}
+          selectedIcao24={selected}
+          onSelect={handleSelect}
+        />
+        <div
+          style={{
+            flex: 1,
+            position: "relative",
+          }}
+        >
         <MapContainer
           center={[20, 0]}
-          zoom={2}
+          zoom={3}
+          maxBounds={[[-85, -180], [85, 180]]}
+          maxBoundsViscosity={1.0}
           scrollWheelZoom={true}
           doubleClickZoom={false}
           style={{ height: "100%", width: "100%" }}
           zoomControl={false}
         >
+          <FitWorldMinZoom />
           <TileLayer
             attribution={DARK_ATTR}
             url={DARK_TILES}
+            className="dark-tiles"
+          />
+          <DayNightOverlay
+            color={theme.name === "souls" ? "#000" : "transparent"}
+            fillColor={theme.name === "souls" ? "#000" : "#050a18"}
+            fillOpacity={theme.name === "souls" ? 0.55 : 0.6}
           />
           <MapClickHandler onSelect={handleSelect} />
           <AircraftMarkers states={states} selectedIcao24={selected} onSelect={handleSelect} />
@@ -85,11 +123,11 @@ export default function App() {
           <span style={s.count}>{states.length} aircraft</span>
           {lastUpdated && <span style={s.ts}>{lastUpdated}</span>}
           <button
-            style={s.themeBtn}
+            style={{ ...s.themeBtn, color: theme.textBright }}
             onClick={toggleTheme}
             title={`Switch to ${theme.name === "radar" ? "Bonfire" : "Radar"} theme`}
           >
-            {theme.icon}
+            <Logo themeName={theme.name === "radar" ? "souls" : "radar"} size={18} />
           </button>
         </div>
 
@@ -110,7 +148,9 @@ export default function App() {
         )}
 
         <SelectionDetail state={selectedState} onClose={() => setSelected(null)} />
+        </div>
       </div>
+      <ThemeSwitchOverlay show={soulsOverlay} onDone={() => setSoulsOverlay(false)} />
     </div>
   );
 }
@@ -134,6 +174,30 @@ function MapClickHandler({ onSelect }: { onSelect: (icao24: string | null) => vo
       onSelect(null);
     },
   });
+  return null;
+}
+
+function FitWorldMinZoom() {
+  const map = useMap();
+  const prev = useRef(-1);
+
+  useEffect(() => {
+    const apply = () => {
+      const size = map.getSize();
+      const worldPx = Math.max(size.x, size.y);
+      const minZoom = Math.max(0, Math.ceil(Math.log2(worldPx / 256)));
+      if (minZoom === prev.current) return;
+      prev.current = minZoom;
+      map.setMinZoom(minZoom);
+      if (map.getZoom() < minZoom) map.setZoom(minZoom);
+    };
+    apply();
+    map.on("resize", apply);
+    return () => {
+      map.off("resize", apply);
+    };
+  }, [map]);
+
   return null;
 }
 

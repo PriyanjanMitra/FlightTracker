@@ -25,19 +25,33 @@ export interface TrailPoint {
   ts: number;
 }
 
+export interface AirportInfo {
+  iata: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+}
+
+export interface AircraftInfo {
+  icao24: string;
+  type: string | null;
+  icao_type: string | null;
+  manufacturer: string | null;
+  registration: string | null;
+  owner: string | null;
+}
+
+export interface AirlineInfo {
+  name: string | null;
+  icao: string | null;
+  iata: string | null;
+}
+
 export interface FlightInfo {
-  origin: {
-    iata: string;
-    name: string;
-    latitude: number;
-    longitude: number;
-  } | null;
-  destination: {
-    iata: string;
-    name: string;
-    latitude: number;
-    longitude: number;
-  } | null;
+  aircraft: AircraftInfo | null;
+  airline: AirlineInfo | null;
+  origin: AirportInfo | null;
+  destination: AirportInfo | null;
 }
 
 // Set MOCK = true to use synthetic data (no backend needed)
@@ -127,6 +141,7 @@ export async function fetchTrails(minutes = 15): Promise<Record<string, TrailPoi
 }
 
 export async function fetchFlightInfo(params: {
+  icao24: string;
   callsign: string;
   latitude?: number;
   longitude?: number;
@@ -136,8 +151,17 @@ export async function fetchFlightInfo(params: {
   if (MOCK) {
     await new Promise((r) => setTimeout(r, 150));
     return {
-      origin: { iata: pick(["JFK", "LAX", "ORD", "ATL", "DFW", "SEA", "SFO"]), name: "Mock Origin", latitude: 0, longitude: 0 },
-      destination: { iata: pick(["MIA", "BOS", "DEN", "PHX", "LAS", "EWR", "MSP"]), name: "Mock Destination", latitude: 0, longitude: 0 },
+      aircraft: {
+        icao24: params.icao24,
+        type: "737-800",
+        icao_type: "B738",
+        manufacturer: "Boeing",
+        registration: "N12345",
+        owner: "Mock Operator",
+      },
+      airline: { name: "Mock Airlines", icao: "ABC", iata: "AB" },
+      origin: { iata: "JFK", name: "Mock Origin", latitude: 0, longitude: 0 },
+      destination: { iata: "LAX", name: "Mock Destination", latitude: 0, longitude: 0 },
     };
   }
   const { data } = await api.get<FlightInfo>("/api/flight-info", { params });
