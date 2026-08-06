@@ -6,7 +6,6 @@ ui-mock.sh
 
 # Local env
 .env
-dashboard/.env
 
 # Python
 __pycache__/
