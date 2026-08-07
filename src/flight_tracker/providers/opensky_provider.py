@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 
 
 def _load_auth() -> tuple[str, str] | None:
-    """Load OpenSky client credentials (clientId/clientSecret) for the OAuth2 flow."""
+    """Load OpenSky client credentials (clientId/clientSecret) from credentials.json."""
     creds_path = pathlib.Path(__file__).resolve().parent.parent.parent.parent / "credentials.json"
     if creds_path.exists():
         try:
@@ -33,11 +33,6 @@ def _load_auth() -> tuple[str, str] | None:
                 return (client_id, client_secret)
         except (json.JSONDecodeError, OSError) as exc:
             log.warning("Failed to read credentials.json: %s", exc)
-
-    from flight_tracker.config import settings
-
-    if settings.opensky_username and settings.opensky_password:
-        return (settings.opensky_username, settings.opensky_password)
     return None
 
 

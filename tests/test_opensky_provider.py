@@ -167,26 +167,10 @@ def test_load_auth_returns_credentials_from_json(mock_path_cls):
 
 
 @patch("flight_tracker.providers.opensky_provider.pathlib.Path")
-def test_load_auth_falls_back_to_settings(mock_path_cls):
-    mock_creds = (
-        mock_path_cls.return_value.resolve.return_value.parent.parent.parent.parent.__truediv__.return_value
-    )
-    mock_creds.exists.return_value = False
-    with patch("flight_tracker.config.settings") as mock_settings:
-        mock_settings.opensky_username = "bob"
-        mock_settings.opensky_password = "hunter2"
-        result = _load_auth()
-    assert result == ("bob", "hunter2")
-
-
-@patch("flight_tracker.providers.opensky_provider.pathlib.Path")
 def test_load_auth_returns_none_when_no_credentials(mock_path_cls):
     mock_creds = (
         mock_path_cls.return_value.resolve.return_value.parent.parent.parent.parent.__truediv__.return_value
     )
     mock_creds.exists.return_value = False
-    with patch("flight_tracker.config.settings") as mock_settings:
-        mock_settings.opensky_username = ""
-        mock_settings.opensky_password = ""
-        result = _load_auth()
+    result = _load_auth()
     assert result is None

@@ -4,8 +4,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 A live flight-tracking dashboard that shows aircraft on a map in real time,
-with a fun, dark, dual-theme (Radar / Dark Souls "Bonfire") look. Pick an
-aircraft to see its altitude, speed, heading, model, airline, and trail.
+with a dark, dual-theme interface (Radar and Dark Souls "Bonfire"). Select an
+aircraft to view its altitude, speed, heading, model, airline, and trail.
 
 ## Quick start
 
@@ -13,8 +13,8 @@ aircraft to see its altitude, speed, heading, model, airline, and trail.
 ./run.sh
 ```
 
-That's it. One command installs dependencies, sets up the database, and starts
-everything:
+This single command installs dependencies, sets up the database, and starts
+all services:
 
 | What      | URL                       |
 | --------- | ------------------------- |
@@ -24,56 +24,54 @@ everything:
 
 Press `Ctrl+C` to stop everything.
 
-> Most people only need `./run.sh`. The sections below are for going deeper.
-> The backend is Windows/Linux-bash friendly via `run.sh`; the frontend runs
-> with `cd dashboard && npm i && npm run dev` if you'd rather split them out.
+> For most users, `./run.sh` is all that is required. The sections below are
+> for those who want to go further.
 
-## What you'll see
+## Features
 
-- A **live map** of aircraft, color-coded by altitude.
-- A **sidebar list** you can sort and search.
-- **Click any aircraft** — the map flies to it, a trail appears, and a panel
-  shows its altitude, speed, heading, aircraft model, and airline.
-- A **day/night overlay** that updates over time.
-- A **theme toggle** switching the whole UI between *Radar* (blue) and
-  *Bonfire* (Dark Souls gold-on-black).
+- **Live map** — aircraft color-coded by altitude.
+- **Aircraft list** — sortable, searchable sidebar.
+- **Flight details** — click an aircraft to view its trail, altitude, speed,
+  heading, model, and airline.
+- **Day/night overlay** — updates over time.
+- **Themes** — toggle between *Radar* (blue) and *Bonfire* (Dark Souls
+  gold-on-black).
 
-## Where the data comes from
+## Data sources
 
-- **[OpenSky Network](https://opensky-network.org)** — free, live aircraft
-  positions (the core feed).
-- **[adsbdb](https://www.adsbdb.com)** — aircraft model and airline details for
-  the panel.
-- A small **local database** (SQLite) so the dashboard stays fast and works
-  offline for the data it has already pulled.
+- **[OpenSky Network](https://opensky-network.org)** — free live aircraft
+  positions.
+- **[adsbdb](https://www.adsbdb.com)** — aircraft model and airline details.
+- **SQLite** — a local database for fast, offline-capable reads.
 
-You don't need any API key to get started. Registering for a free OpenSky
-account unlocks a much higher request limit (see below).
+No API key is required to get started. A free OpenSky account unlocks a much
+higher request limit (see below).
 
 ## Configuration (optional)
 
-Everything has sensible defaults, so you can skip this unless you want to tune
-things. The main knobs:
+Defaults are sensible, so configuration is only needed to customize behavior:
 
 ```bash
-cp .env.example .env   # optional — only if you want to customize
+cp .env.example .env   # optional
 ```
 
-- **OpenSky area** — `OPENSKY_BBOX` narrows the fetch to a bounding box.
-- **OpenSky speed** — create a free account and add `credentials.json` in the
-  project root to go from ~10 requests/min to 4000/hour.
+- **OpenSky area** — set `OPENSKY_BBOX` to restrict fetching to a bounding box.
+- **OpenSky access** — anonymous access is limited to ~10 requests/min. To
+  raise it to 4000/hour, create a free OpenSky account and add a
+  `credentials.json` to the project root:
   ```json
-  { "username": "you@mail.com", "password": "your-password" }
+  { "clientId": "...", "clientSecret": "..." }
   ```
-  (This file is git-ignored — never commit it.)
+  Obtain these values from the OpenSky API client console. The app reads only
+  this file. It is git-ignored and must not be committed.
 
 ## Useful commands
 
-Use these instead of `run.sh` when you want to do one thing at a time:
+Use these to run components individually instead of `run.sh`:
 
 ```bash
 python main.py init-db          # set up the database (run.sh does this for you)
-python main.py ingest-once      # pull aircraft data once, then print how many
+python main.py ingest-once      # fetch aircraft data once
 python main.py run-pipeline     # keep pulling data on a schedule
 python main.py serve-backend    # start the API server only
 ```
@@ -91,11 +89,12 @@ Tests live in `tests/` and are also run automatically by GitHub Actions (CI).
 
 ## Troubleshooting
 
-- **No aircraft on the map** — make sure both the backend and frontend are
-  running, and that the API has data: `python main.py ingest-once`.
-- **"Cannot reach backend"** — the frontend expects `http://localhost:8000`.
-  Make sure `serve-backend` (or `run.sh`) is running.
-- **Data feeding slowly / rate-limited** — set up OpenSky authentication (above).
+- **No aircraft on the map** — ensure the backend and frontend are running, and
+  that data is available: `python main.py ingest-once`.
+- **"Cannot reach backend"** — the frontend expects the API at
+  `http://localhost:8000`. Ensure `serve-backend` (or `run.sh`) is running.
+- **Slow or rate-limited data** — set up OpenSky authentication as described
+  above.
 
 ## License
 

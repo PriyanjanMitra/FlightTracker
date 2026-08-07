@@ -8,8 +8,6 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_format: str = "text"
     cors_origins: str = "*"
-    opensky_username: str = ""
-    opensky_password: str = ""
     aircraft_registry_db: str = "data/aircraft_registry.db"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
