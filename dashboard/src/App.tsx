@@ -111,7 +111,7 @@ export default function App() {
           <DayNightOverlay
             color={theme.name === "souls" ? "#000" : "transparent"}
             fillColor={theme.name === "souls" ? "#000" : "#050a18"}
-            fillOpacity={theme.name === "souls" ? 0.55 : 0.6}
+            fillOpacity={0.25}
           />
           <MapClickHandler onSelect={handleSelect} />
           <AircraftMarkers states={states} selectedIcao24={selected} onSelect={handleSelect} />
