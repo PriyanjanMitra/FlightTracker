@@ -1,4 +1,4 @@
-"""Provider that fetches aircraft, airline, and route data from the adsbdb API."""
+"""Provider that fetches aircraft and airline data from the adsbdb API."""
 
 import logging
 from typing import Any
@@ -8,7 +8,6 @@ import requests
 from flight_tracker.models.dtos import (
     AircraftInfo,
     AirlineInfo,
-    AirportInfo,
     FlightInfoResponse,
 )
 
@@ -16,20 +15,6 @@ ADSBDB_API = "https://api.adsbdb.com/v0"
 REQUEST_TIMEOUT = 10
 
 log = logging.getLogger(__name__)
-
-
-def _airport(data: dict[str, Any] | None) -> AirportInfo | None:
-    if not data:
-        return None
-    try:
-        return AirportInfo(
-            iata=str(data.get("iata_code") or ""),
-            name=str(data.get("name") or ""),
-            latitude=float(data["latitude"]),
-            longitude=float(data["longitude"]),
-        )
-    except (KeyError, TypeError, ValueError):
-        return None
 
 
 class AdsbdbProvider:
@@ -69,7 +54,7 @@ class AdsbdbProvider:
             owner=ac.get("registered_owner"),
         )
 
-        route_info = FlightInfoResponse(
+        return FlightInfoResponse(
             aircraft=aircraft,
             airline=AirlineInfo(
                 name=airline.get("name"),
@@ -78,7 +63,4 @@ class AdsbdbProvider:
             )
             if airline
             else None,
-            origin=_airport(fr.get("origin")),
-            destination=_airport(fr.get("destination")),
         )
-        return route_info

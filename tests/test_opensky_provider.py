@@ -7,7 +7,6 @@ import responses
 from flight_tracker.providers.opensky_provider import (
     AUTH_URL,
     OPENSKY_API,
-    OPENSKY_FLIGHTS_AIRCRAFT_API,
     OpenSkyProvider,
     _load_auth,
 )
@@ -191,64 +190,3 @@ def test_load_auth_returns_none_when_no_credentials(mock_path_cls):
         mock_settings.opensky_password = ""
         result = _load_auth()
     assert result is None
-
-
-@responses.activate
-def test_fetch_trajectory_route_returns_airports():
-    responses.add(
-        responses.Response(
-            method="POST",
-            url=AUTH_URL,
-            json={"access_token": "tok", "expires_in": 1800},
-            status=200,
-        )
-    )
-    responses.add(
-        responses.Response(
-            method="GET",
-            url=OPENSKY_FLIGHTS_AIRCRAFT_API,
-            json=[
-                {
-                    "icao24": "4bb15a",
-                    "estDepartureAirport": "VHHH",
-                    "estArrivalAirport": None,
-                    "callsign": "THY6237 ",
-                }
-            ],
-            status=200,
-        )
-    )
-    with patch("flight_tracker.providers.opensky_provider._load_auth", return_value=("id", "sec")):
-        provider = OpenSkyProvider()
-        origin, destination = provider.fetch_trajectory_route("4bb15a")
-    assert origin == "VHHH"
-    assert destination is None
-
-
-@responses.activate
-def test_fetch_trajectory_route_requires_auth():
-    with patch("flight_tracker.providers.opensky_provider._load_auth", return_value=None):
-        provider = OpenSkyProvider()
-        origin, destination = provider.fetch_trajectory_route("4bb15a")
-    assert origin is None
-    assert destination is None
-
-
-@responses.activate
-def test_fetch_trajectory_route_404_returns_none():
-    responses.add(
-        responses.Response(
-            method="POST",
-            url=AUTH_URL,
-            json={"access_token": "tok", "expires_in": 1800},
-            status=200,
-        )
-    )
-    responses.add(
-        responses.Response(method="GET", url=OPENSKY_FLIGHTS_AIRCRAFT_API, json=[], status=404)
-    )
-    with patch("flight_tracker.providers.opensky_provider._load_auth", return_value=("id", "sec")):
-        provider = OpenSkyProvider()
-        origin, destination = provider.fetch_trajectory_route("4bb15a")
-    assert origin is None
-    assert destination is None

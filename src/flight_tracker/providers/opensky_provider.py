@@ -12,14 +12,11 @@ import requests
 from flight_tracker.models.dtos import FlightStateDTO
 
 OPENSKY_API = "https://opensky-network.org/api/states/all"
-OPENSKY_ROUTES_API = "https://opensky-network.org/api/routes"
-OPENSKY_FLIGHTS_AIRCRAFT_API = "https://opensky-network.org/api/flights/aircraft"
 AUTH_URL = "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token"
 REQUEST_TIMEOUT = 30
 MAX_RETRIES = 3
 BASE_BACKOFF = 2.0
 DEFAULT_RATE_LIMIT_BACKOFF = 120.0
-ROUTE_HISTORY_HOURS = 24
 
 log = logging.getLogger(__name__)
 
@@ -170,77 +167,6 @@ class OpenSkyProvider:
         if last_exc:
             log.error("OpenSky request failed after %d attempts: %s", MAX_RETRIES, last_exc)
         return []
-
-    def fetch_route(self, callsign: str) -> tuple[str, str] | None:
-        """Fetch the route (origin, destination) for a flight by callsign.
-
-        The OpenSky routes API is keyed by callsign and returns a flat list of
-        ICAO airport codes: {"route": ["EGLL", "OTHH"], ...}.
-        Returns a (origin_icao, destination_icao) tuple, or None when unknown/errors.
-        """
-        params = {"callsign": callsign}
-        headers = self._request_headers()
-        try:
-            resp = requests.get(
-                OPENSKY_ROUTES_API, params=params, headers=headers, timeout=REQUEST_TIMEOUT
-            )
-            if resp.status_code == 404:
-                return None
-            resp.raise_for_status()
-            data = resp.json()
-            route = data.get("route") if isinstance(data, dict) else None
-            if not route or len(route) < 2:
-                return None
-            origin, destination = route[0], route[1]
-            if not origin or not destination:
-                return None
-            return str(origin), str(destination)
-        except (requests.RequestException, KeyError, TypeError, ValueError) as exc:
-            log.warning("OpenSky route request failed for %s: %s", callsign, exc)
-            return None
-
-    def fetch_trajectory_route(self, icao24: str) -> tuple[str | None, str | None]:
-        """Fetch origin/destination estimated from the aircraft's observed trajectory.
-
-        Requires authenticated OpenSky access. Queries the aircraft's flights over the
-        last ROUTE_HISTORY_HOURS and returns (estDepartureAirport, estArrivalAirport)
-        as ICAO codes from the most recent flight. Either element may be None when not
-        yet resolved (e.g. arrival is unknown mid-ocean).
-        """
-        headers = self._request_headers()
-        if not headers:
-            log.info("No OpenSky credentials; skipping trajectory route for %s", icao24)
-            return (None, None)
-        now = int(time.time())
-        params: dict[str, str | int] = {
-            "icao24": icao24,
-            "begin": now - ROUTE_HISTORY_HOURS * 3600,
-            "end": now,
-        }
-        try:
-            resp = requests.get(
-                OPENSKY_FLIGHTS_AIRCRAFT_API,
-                params=params,
-                headers=headers,
-                timeout=REQUEST_TIMEOUT,
-            )
-            if resp.status_code == 404:
-                return (None, None)
-            if resp.status_code == 401:
-                self._token = None
-                log.warning("OpenSky returned 401 for trajectory route; token refreshed")
-                return (None, None)
-            resp.raise_for_status()
-            flights = resp.json()
-            if not isinstance(flights, list) or not flights:
-                return (None, None)
-            flight = flights[-1]
-            origin = flight.get("estDepartureAirport")
-            destination = flight.get("estArrivalAirport")
-            return (str(origin) if origin else None, str(destination) if destination else None)
-        except (requests.RequestException, KeyError, TypeError, ValueError) as exc:
-            log.warning("OpenSky trajectory route request failed for %s: %s", icao24, exc)
-            return (None, None)
 
     @staticmethod
     def _parse_states(data: dict[str, Any]) -> list[FlightStateDTO]:

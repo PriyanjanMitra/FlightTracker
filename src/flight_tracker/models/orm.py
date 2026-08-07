@@ -21,51 +21,6 @@ class Base(DeclarativeBase):
     pass
 
 
-class Airport(Base):
-    __tablename__ = "airports"
-
-    id = Column(Integer, primary_key=True)
-    icao = Column(String(4), nullable=True, index=True)
-    iata = Column(String(3), nullable=True, index=True)
-    name = Column(String(128), nullable=True)
-    city = Column(String(64), nullable=True)
-    country = Column(String(64), nullable=True)
-    latitude = Column(Float, nullable=False)
-    longitude = Column(Float, nullable=False)
-    altitude = Column(Integer, nullable=True)
-    timezone = Column(String(32), nullable=True)
-    dst = Column(String(1), nullable=True)
-    type = Column(String(16), nullable=True)
-    source = Column(String(16), nullable=True)
-
-
-class Route(Base):
-    __tablename__ = "routes"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    airline = Column(String(3), nullable=True)
-    airline_id = Column(Integer, nullable=True)
-    source_airport = Column(String(3), nullable=True, index=True)
-    source_airport_id = Column(Integer, nullable=True)
-    destination_airport = Column(String(3), nullable=True, index=True)
-    destination_airport_id = Column(Integer, nullable=True)
-    codeshare = Column(String(1), nullable=True)
-    stops = Column(Integer, nullable=True)
-    equipment = Column(String(64), nullable=True)
-
-
-class Airline(Base):
-    __tablename__ = "airlines"
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String(128), nullable=True)
-    iata = Column(String(2), nullable=True, index=True)
-    icao = Column(String(3), nullable=True, index=True)
-    callsign = Column(String(64), nullable=True)
-    country = Column(String(64), nullable=True)
-    active = Column(String(1), nullable=True)
-
-
 class FlightState(Base):
     __tablename__ = "flight_states"
     __table_args__ = (

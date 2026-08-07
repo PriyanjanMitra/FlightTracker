@@ -25,13 +25,6 @@ export interface TrailPoint {
   ts: number;
 }
 
-export interface AirportInfo {
-  iata: string;
-  name: string;
-  latitude: number;
-  longitude: number;
-}
-
 export interface AircraftInfo {
   icao24: string;
   type: string | null;
@@ -50,8 +43,6 @@ export interface AirlineInfo {
 export interface FlightInfo {
   aircraft: AircraftInfo | null;
   airline: AirlineInfo | null;
-  origin: AirportInfo | null;
-  destination: AirportInfo | null;
 }
 
 // Set MOCK = true to use synthetic data (no backend needed)
@@ -160,8 +151,6 @@ export async function fetchFlightInfo(params: {
         owner: "Mock Operator",
       },
       airline: { name: "Mock Airlines", icao: "ABC", iata: "AB" },
-      origin: { iata: "JFK", name: "Mock Origin", latitude: 0, longitude: 0 },
-      destination: { iata: "LAX", name: "Mock Destination", latitude: 0, longitude: 0 },
     };
   }
   const { data } = await api.get<FlightInfo>("/api/flight-info", { params });

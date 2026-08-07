@@ -12,14 +12,12 @@ from sqlalchemy.orm import Session, sessionmaker
 from flight_tracker.config import settings
 from flight_tracker.models.dtos import (
     CATEGORY_LABELS,
-    AirportInfo,
     FlightInfoResponse,
     FlightStateResponse,
 )
-from flight_tracker.models.orm import Airport, create_engine_safe
+from flight_tracker.models.orm import create_engine_safe
 from flight_tracker.providers.adsbdb_provider import AdsbdbProvider
 from flight_tracker.providers.aircraft_registry import AircraftRegistry
-from flight_tracker.providers.opensky_provider import OpenSkyProvider
 
 app = FastAPI(title="FlightTracker API")
 
@@ -38,7 +36,6 @@ _CACHE_TTL = 2.0
 _ADSBCACHE_TTL = 120.0
 
 _adsbdb = AdsbdbProvider()
-_opensky = OpenSkyProvider()
 _registry = AircraftRegistry(settings.aircraft_registry_db)
 
 
@@ -125,9 +122,8 @@ def get_flight_info(
     longitude: float | None = None,
     heading: float | None = None,
     vertical_rate: float | None = None,
-    db: Session = Depends(get_db),
 ) -> FlightInfoResponse:
-    """Build flight-info from ADS‑B DB + OpenSky routes."""
+    """Build flight-info from ADS‑B DB + OpenSky aircraft registry (no routes)."""
     adsb_info = None
     if icao24:
         key = f"flight-info:{icao24}:{callsign.upper()}"
@@ -139,8 +135,6 @@ def get_flight_info(
 
     aircraft = adsb_info.aircraft if adsb_info else None
     airline = adsb_info.airline if adsb_info else None
-    origin = adsb_info.origin if adsb_info else None
-    destination = adsb_info.destination if adsb_info else None
 
     # Prefer the local OpenSky aircraft registry for type details (offline, free).
     if (aircraft is None or aircraft.icao_type is None) and icao24:
@@ -150,46 +144,7 @@ def get_flight_info(
             if adsb_info is not None and adsb_info.aircraft is not None:
                 aircraft.owner = aircraft.owner or adsb_info.aircraft.owner
 
-    # Fall back to OpenSky route (keyed by callsign) when ADS‑B DB lacks a route.
-    if (origin is None or destination is None) and (icao24 or callsign):
-        route = _cached(
-            f"route:{icao24 or callsign.upper()}",
-            _ADSBCACHE_TTL,
-            lambda: _opensky.fetch_route(callsign),
-        )
-        if route:
-            origin = origin or _airport_by_icao(db, route[0])
-            destination = destination or _airport_by_icao(db, route[1])
-
-    # Last resort: trajectory-estimated origin/destination from OpenSky (auth).
-    if (origin is None or destination is None) and icao24:
-        traj = _cached(
-            f"traj:{icao24}",
-            _ADSBCACHE_TTL,
-            lambda: _opensky.fetch_trajectory_route(icao24),
-        )
-        if traj:
-            origin = origin or (_airport_by_icao(db, traj[0]) if traj[0] else None)
-            destination = destination or (
-                _airport_by_icao(db, traj[1]) if traj[1] else None
-            )
-
     return FlightInfoResponse(
         aircraft=aircraft,
         airline=airline,
-        origin=origin,
-        destination=destination,
-    )
-
-
-def _airport_by_icao(db: Session, icao: str) -> AirportInfo | None:
-    """Resolve an ICAO airport code to an AirportInfo row, if present in the DB."""
-    row = db.query(Airport).filter(Airport.icao == icao).first()
-    if not row or row.latitude is None or row.longitude is None:
-        return None
-    return AirportInfo(
-        iata=str(row.iata or ""),
-        name=str(row.name or icao),
-        latitude=float(row.latitude),
-        longitude=float(row.longitude),
     )

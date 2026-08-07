@@ -36,32 +36,22 @@ if [ ! -x "$VENV/bin/python" ]; then
 fi
 
 # --- Install Python deps ---
-echo -e "${GREEN}[1/5] Installing Python dependencies...${NC}"
+echo -e "${GREEN}[1/4] Installing Python dependencies...${NC}"
 "$VENV/bin/pip" install -q -e "$ROOT" 2>/dev/null || "$VENV/bin/pip" install -e "$ROOT"
 
 # --- Init DB ---
-echo -e "${GREEN}[2/5] Initializing database...${NC}"
+echo -e "${GREEN}[2/4] Initializing database...${NC}"
 mkdir -p "$DATA_DIR"
 "$VENV/bin/python" "$ROOT/main.py" init-db
 
-# --- Load reference data (only once) ---
-if [ ! -f "$DATA_DIR/openflights/.loaded" ]; then
-    echo -e "${GREEN}[3/5] Loading reference data (airports, airlines, routes)...${NC}"
-    "$VENV/bin/python" "$ROOT/main.py" load-ref-data
-    mkdir -p "$DATA_DIR/openflights"
-    touch "$DATA_DIR/openflights/.loaded"
-else
-    echo -e "${GREEN}[3/5] Reference data already loaded, skipping.${NC}"
-fi
-
 # --- Install frontend deps ---
-echo -e "${GREEN}[4/5] Installing frontend dependencies...${NC}"
+echo -e "${GREEN}[3/4] Installing frontend dependencies...${NC}"
 cd "$ROOT/dashboard"
 npm install --silent 2>/dev/null || npm install
 cd "$ROOT"
 
 # --- Launch ---
-echo -e "${GREEN}[5/5] Starting services...${NC}"
+echo -e "${GREEN}[4/4] Starting services...${NC}"
 
 # Pipeline (poll OpenSky)
 "$VENV/bin/python" "$ROOT/main.py" run-pipeline &

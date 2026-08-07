@@ -31,6 +31,4 @@ def test_init_db_creates_tables(tmp_path: pathlib.Path) -> None:
     )
     inspector = inspect(engine)
     tables = inspector.get_table_names()
-    assert "airports" in tables
-    assert "routes" in tables
-    assert "airlines" in tables
+    assert "flight_states" in tables

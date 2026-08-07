@@ -67,20 +67,6 @@ export default function SelectionDetail({ state, onClose }: Props) {
           <div style={s.airline}>{flightInfo.airline.name}</div>
         )}
 
-        {(flightInfo?.origin || flightInfo?.destination) && (
-          <div style={s.route}>
-            <div style={s.routeEnd}>
-              <span style={s.airportCode}>{flightInfo?.origin?.iata ?? "—"}</span>
-              <span style={s.airportName}>{flightInfo?.origin?.name ?? "Unknown"}</span>
-            </div>
-            <span style={s.routeArrow}>→</span>
-            <div style={s.routeEnd}>
-              <span style={s.airportCode}>{flightInfo?.destination?.iata ?? "—"}</span>
-              <span style={s.airportName}>{flightInfo?.destination?.name ?? "Unknown"}</span>
-            </div>
-          </div>
-        )}
-
         <div style={s.grid}>
           <div style={s.gridItem}>
             <span style={s.label}>Altitude</span>
@@ -162,36 +148,6 @@ function styles(theme: ReturnType<typeof useTheme>["theme"]): Record<string, Rea
       color: theme.name === "souls" ? theme.accentText : theme.text,
       marginBottom: 4,
       textShadow: theme.name === "souls" ? "0 0 14px rgba(212,175,55,0.35)" : "none",
-    },
-    route: {
-      display: "flex",
-      alignItems: "center",
-      gap: 12,
-      marginBottom: 18,
-      fontSize: 14,
-    },
-    routeEnd: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 2,
-    },
-    airportCode: {
-      fontWeight: 700,
-      color: theme.accent,
-      fontSize: 18,
-      letterSpacing: "0.1em",
-    },
-    airportName: {
-      fontSize: 11,
-      color: theme.muted,
-      maxWidth: 170,
-      whiteSpace: "nowrap" as const,
-      overflow: "hidden",
-      textOverflow: "ellipsis",
-    },
-    routeArrow: {
-      color: theme.muted,
-      fontSize: 14,
     },
     aircraftLine: {
       display: "flex",

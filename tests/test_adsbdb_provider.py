@@ -51,7 +51,7 @@ def _payload():
 
 
 @responses.activate
-def test_fetch_flight_info_parses_aircraft_airline_and_route():
+def test_fetch_flight_info_parses_aircraft_and_airline():
     responses.add(responses.Response(method="GET", url=_URL, json=_payload(), status=200))
     provider = AdsbdbProvider()
     info = provider.fetch_flight_info(_ICAO, callsign="AFR23SB")
@@ -68,15 +68,6 @@ def test_fetch_flight_info_parses_aircraft_airline_and_route():
     assert info.airline.name == "Air France"
     assert info.airline.icao == "AFR"
     assert info.airline.iata == "AF"
-
-    assert info.origin is not None
-    assert info.origin.iata == "CDG"
-    assert info.origin.name == "Charles de Gaulle International Airport"
-    assert info.origin.latitude == 49.012798
-
-    assert info.destination is not None
-    assert info.destination.iata == "MAD"
-    assert info.destination.name == "Adolfo Suárez Madrid–Barajas Airport"
 
 
 @responses.activate

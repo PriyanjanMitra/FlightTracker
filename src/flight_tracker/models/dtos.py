@@ -57,13 +57,6 @@ class FlightStateResponse(BaseModel):
     category_label: str
 
 
-class AirportInfo(BaseModel):
-    iata: str
-    name: str
-    latitude: float
-    longitude: float
-
-
 class AirlineInfo(BaseModel):
     name: str | None = None
     icao: str | None = None
@@ -82,5 +75,3 @@ class AircraftInfo(BaseModel):
 class FlightInfoResponse(BaseModel):
     aircraft: AircraftInfo | None = None
     airline: AirlineInfo | None = None
-    origin: AirportInfo | None = None
-    destination: AirportInfo | None = None
